@@ -7,24 +7,21 @@ Created on Mon Jul 19 15:08:24 2021
 """
 
 import pandas as pd
-import numpy as np
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import NLTKWordTokenizer
+import joblib
 nltk.download('stopwords')
 stop_words = set(stopwords.words('english'))
 stop_words.update(["'ve", "", "'ll", "'s", ".", ",", "?", "!", "(", ")", "..", "'m", "n", "u"])
  
-from time import process_time
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.tree import DecisionTreeClassifier
 
 
-import joblib
 
 def preprocess_text(text):
     tokenizer = NLTKWordTokenizer()
@@ -37,7 +34,7 @@ def preprocess_text(text):
 
 
 if __name__ == '__main__' :
-    df = pd.read_csv('DisneylandReviews.csv', encoding='cp1252')
+    df = pd.read_csv('others/DisneylandReviews.csv', encoding='cp1252')
     df = df.drop(['Review_ID', 'Year_Month', 'Reviewer_Location'], axis=1)
     df['Review_Text'] = df['Review_Text'].apply(preprocess_text)
     

@@ -8,26 +8,31 @@ Created on Mon Jul 19 16:42:00 2021
 
 
 from flask import Flask, render_template, request, jsonify, send_from_directory, flash, redirect, url_for, session, make_response, abort
-import pandas as pd
 import model_builder
 import joblib
 import requests
-USERNAMES = pd.read_table('files/username',sep=',')
-USERNAMES = {user.lower():pwd for (user,pwd) in zip(USERNAMES.USER,USERNAMES.PASSWORD)}
+import base64
+file = open('files/username').read().split('\n')[1:]
+locs = ['California','HongKong','Paris']
 
+USERNAMES = [x.split(',') for x in file if x != '']
 port = 8500
 app = Flask(__name__)
 app.config['SECRET_KEY'] = '\xfd{H\xe5<\x95\xf9\xe3\x96.5\xd1\x01O<!\xd5\xa2\xa0\x9fR"\xa1\xa8'
 
 
 
-
+### Clefs possibles d'utilisateur
+all_credentials = {base64.b64encode(bytes(user + ":" + pwd, encoding='utf8')):1  for (user,pwd) in USERNAMES}
+'''
+{b'YWxpY2U6d29uZGVybGFuZA==': 1,
+ b'Ym9iOmJ1aWxkZXI=': 1,
+ b'Y2zDqW1lbnRpbmU6bWFuZGFyaW5l': 1}
+'''
 
 @app.route('/',methods=['GET','POST'])
 def index():
-    print(session)
     if request.method == 'GET' :
-        print('argh')
         return '''
 <form action="" method="post" role="form" enctype="multipart/form-data">
 <h1>Projet Data Scientest</h1>
@@ -50,22 +55,20 @@ Veuillez renseigner pseudo et mot de passe
 </form>
 '''
     if request.method == 'POST' : 
-        if 'name' in session : 
-            session.pop('name')  
-        if 'password' in session : 
-            session.pop('password')
+        session['auth'] = 'not ok'
+        session['credentials'] =  ''
         name,password=request.form['name'],request.form['password']
-        credentials = {'name':name,'password':password}
+        credentials = base64.b64encode(bytes(name + ":" + password, encoding='utf8'))
         check_credentials(credentials)
-        session['name']=name
-        session['password']=password
+        session['auth'] = 'ok'
+        session['credentials'] = credentials
         return redirect('application')
 
 
 
 @app.route('/application',methods=['GET','POST'])
 def application():
-    if 'name' not in session : 
+    if 'auth' not in session or session['auth']=='not ok' : 
         abort(402,'Veuillez dabord vous connecter')
     result = '''
 <form action="" method="post" role="form" enctype="multipart/form-data">
@@ -96,7 +99,6 @@ Veuillez renseigner un lieu de Disney
 
 </form>
 '''
-
     if request.method == 'POST' : 
         text = request.form['phrase']
         location = request.form['select_option']
@@ -104,20 +106,18 @@ Veuillez renseigner un lieu de Disney
         onemodel = requests.get(
         url=f'http://127.0.0.1:{port}/onemodel',
         json= {
-            'name': session['name'],
-            'password': session['password'],
             'text' : text
-        }
+        },
+        headers={'Authorization': session['credentials']}
         )
         
         locmodel = requests.get(
         url=f'http://127.0.0.1:{port}/locmodel',
         json= {
-            'name': session['name'],
-            'password': session['password'],
             'text' : text,
             'location' : location
-        }
+        },
+        headers={'Authorization': session['credentials']}
         )
 
 
@@ -138,21 +138,20 @@ Analyse modèle {location} : {locmodel.json()['result']}
 
 @app.route('/permissions',methods=['GET'])
 def permissions():
-    #curl -X GET http://0.0.0.0:8000/permissions -i -H "Content-Type: application/json" -d '{"name": "daniel", "password" : "youpi"}' 
-    #curl -X GET http://0.0.0.0:8000/permissions -i -H "Content-Type: application/json" -d '{"name": "alice", "password" : "wonderland"}' 
-    check_credentials(request.json)
-    name = request.json['name']
-    password = request.json['password']
-    session['name']=name
-    session['password']=password
+    #curl -X GET http://0.0.0.0:8500/permissions  --user alice:wonderland
+    #curl -X GET http://0.0.0.0:8500/permissions --user alice:dgkh
+    check_credentials(request.headers.get('Authorization'))
+    code = request.headers.get('Authorization').split()[-1]
+    session['auth']='ok'
+    session['credentials'] = code
     return jsonify("Vous pouvez désormais utiliser l'application")
 
 
 @app.route('/onemodel',methods=['GET'])
 def onemodel():
-    #curl -X GET http://0.0.0.0:8000/onemodel -i -H "Content-Type: application/json" -d '{"name": "alice", "password" : "wonderland", "text" : "Wonderful"}' 
-    check_credentials(request.json)
-    if 'text' not in request.json : 
+    #curl -X GET http://0.0.0.0:8500/onemodel -i -H "Content-Type: application/json" -d '{"text" : "Wonderful"}' --user alice:wonderland
+    check_credentials(request.headers.get('Authorization'))
+    if 'text' not in request.json or len(request.json['text']) == 0 : 
         abort(403,'No text given')
     text = request.json['text']
     test = [model_builder.preprocess_text(text)]
@@ -162,12 +161,14 @@ def onemodel():
 
 @app.route('/locmodel',methods=['GET'])
 def locmodel():
-    #curl -X GET http://0.0.0.0:8000/onemodel -i -H "Content-Type: application/json" -d '{"name": "alice", "password" : "wonderland", "text" : "Wonderful", "location": "Paris"}' 
-    check_credentials(request.json)
-    if 'text' not in request.json : 
+    #curl -X GET http://0.0.0.0:8500/locmodel -i -H "Content-Type: application/json" -d '{"text" : "Wonderful", "location": "Paris"}'  --user alice:wonderland
+    check_credentials(request.headers.get('Authorization'))
+    if 'text' not in request.json or len(request.json['text']) == 0: 
         abort(403,'No text given')
     if 'location' not in request.json : 
         abort(403,'No location given')
+    if  request.json['location'] not in locs : 
+        abort(403,'Location is not good')
     text = request.json['text']
     location = request.json['location']
     test = [model_builder.preprocess_text(text)]
@@ -179,29 +180,32 @@ def locmodel():
 
 @app.route('/status',methods=['GET'])
 def status():
+    #curl -X GET http://0.0.0.0:8500/status
     """
     Verifie que l'application fonctionne
     """
     return jsonify([1,"l'application fonctionne"])
     
+def encode_to_bytes(s) : 
+    if type(s)==str : 
+        return bytes(s,encoding='utf-8')
+    if type(s)==bytes : 
+        return s 
 
 
 def check_credentials(credentials):
     """
     Check acces, et bon format de la requete
     """
-    if "name" not in credentials or "password" not in credentials  :
+    if credentials is None :
             abort(403,description = "Information non valide : veuillez renseigner name et password")
-    name = credentials['name'].lower()
-    password = credentials['password']
-    if name not in USERNAMES : 
-        abort(403,description = f"Utilisateur {name} non connu")
-    if str(USERNAMES[name]) != str(password) : 
-        abort(403,description = "Mot de passe mauvais")
+    credentials = credentials.split()[-1]
+    if encode_to_bytes(credentials) not in all_credentials : 
+        abort(403,description = "Pseudo ou mot de passe mauvais")
     return jsonify(["Mot de passe bien renseigné"])
 
 if __name__ == '__main__':
-    locs = ['California','HongKong','Paris']
+    
     pipeline_one_model = joblib.load('models/pipeline_one_model')
     pipelines_location = {loc : joblib.load(f'models/pipeline_Disneyland_{loc}') for loc in locs}
     app.run(host="0.0.0.0",port=port,debug=True)
