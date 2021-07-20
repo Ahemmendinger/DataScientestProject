@@ -1,0 +1,13 @@
+cd test1
+docker image build . -t ahemmendinger/project_test1:latest
+docker image push ahemmendinger/project_test1:latest
+cd ../
+cd test2
+docker image build . -t ahemmendinger/project_test2:latest
+docker image push ahemmendinger/project_test2:latest
+cd ../
+cd test3
+docker image build . -t ahemmendinger/project_test3:latest
+docker image push ahemmendinger/project_test3:latest
+cd ../
+echo

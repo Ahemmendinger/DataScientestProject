@@ -1,0 +1,49 @@
+version: '2.9'
+services:
+  api:
+    image: ahemmendinger/project_data
+    container_name: project
+    networks: 
+      - network_api
+  test1:
+    image: ahemmendinger/project_test1
+    networks: 
+      - network_api
+    restart: always 
+    build: .
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://project:8500/status"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+  test2:
+    image: ahemmendinger/project_test2
+    networks: 
+      - network_api
+    restart: always 
+    build: .
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://project:8500/status"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+  test3:
+    image: ahemmendinger/project_test3
+    networks: 
+      - network_api
+    restart: always 
+    build: .
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://project:8500/status"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+networks:
+  network_api:
+

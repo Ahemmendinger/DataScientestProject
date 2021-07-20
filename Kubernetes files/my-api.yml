@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-sentiment-analysis-deployment
+  labels:
+    app: my-sentiment-analysis-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-sentiment-analysis-api
+  template:
+    metadata:
+      labels:
+        app: my-sentiment-analysis-api
+    spec:
+      containers:
+      - name: my-sentiment-analysis-api
+        image: ahemmendinger/project_data
+        ports:
+        - containerPort: 8500
+
